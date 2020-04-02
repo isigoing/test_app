@@ -1,23 +1,30 @@
 package com.example.myfirstapp;
 
-import androidx.annotation.NonNull;
-import androidx.appcompat.app.AppCompatActivity;
-import androidx.core.app.ActivityCompat;
-
-import android.Manifest;
 import android.annotation.SuppressLint;
+import android.content.Context;
 import android.content.Intent;
-import android.content.pm.PackageManager;
 import android.location.Location;
 import android.location.LocationListener;
 import android.location.LocationManager;
 import android.os.Build;
 import android.os.Bundle;
-import android.provider.Settings;
+import android.telephony.CellInfo;
+import android.telephony.CellInfoGsm;
+import android.telephony.CellInfoLte;
+import android.telephony.CellInfoWcdma;
+import android.telephony.CellSignalStrengthGsm;
+import android.telephony.CellSignalStrengthLte;
+import android.telephony.CellSignalStrengthWcdma;
+import android.telephony.TelephonyManager;
+import android.util.Log;
 import android.view.View;
-import android.widget.Button;
 import android.widget.EditText;
 import android.widget.TextView;
+
+import androidx.annotation.RequiresApi;
+import androidx.appcompat.app.AppCompatActivity;
+
+import java.util.List;
 
 public class MainActivity extends AppCompatActivity {
 
@@ -25,11 +32,38 @@ public class MainActivity extends AppCompatActivity {
     TextView textViewPosition;
     TextView textViewCoverage;
     int counter;
+    String strength = "";
+
     LocationManager locationManager;
-    LocationListener locationListener;
-    Button button;
+    Context context;
+
+    LocationListener locationListener = new LocationListener() {
+        @RequiresApi(api = Build.VERSION_CODES.JELLY_BEAN_MR1)
+        @Override
+        public void onLocationChanged(Location location) {
+            textViewPosition.setText("Latitude: "+ location.getLatitude() +"\n" + "Longitude: " + location.getLongitude());
+            getSignalStrength();
+            textViewCoverage.setText(strength);
+        }
+
+        @Override
+        public void onStatusChanged(String provider, int status, Bundle extras) {
+            Log.d("Latitude", "disable");
+        }
+
+        @Override
+        public void onProviderEnabled(String provider) {
+            Log.d("Latitude", "enable");
+        }
+
+        @Override
+        public void onProviderDisabled(String provider) {
+            Log.d("Latitude", "status");
+        }
+    };
 
 
+    @SuppressLint("MissingPermission")
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         System.out.println(" ------------------- here we start  ------------");
@@ -38,67 +72,16 @@ public class MainActivity extends AppCompatActivity {
 
         textViewPosition = (TextView) findViewById(R.id.textViewPosition);
         textViewCoverage = (TextView) findViewById(R.id.textViewCoverage);
-        button = (Button) findViewById(R.id.getcovpos);
+
+        locationManager = (LocationManager) getSystemService(Context.LOCATION_SERVICE);
+        locationManager.requestLocationUpdates(LocationManager.GPS_PROVIDER, 0, 0, locationListener);
 
 
-        locationManager = (LocationManager) getSystemService(LOCATION_SERVICE);
-        locationListener = new LocationListener() {
-            @Override
-            public void onLocationChanged(Location location) {
-                System.out.println("!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!");
-                textViewPosition.append("\n " + location.getLongitude() + " " + location.getLatitude());
-            }
-
-            @Override
-            public void onStatusChanged(String provider, int status, Bundle extras) {
-
-            }
-
-            @Override
-            public void onProviderEnabled(String provider) {
-
-            }
-
-            @Override
-            public void onProviderDisabled(String provider) {
-                Intent intent = new Intent(Settings.ACTION_LOCATION_SOURCE_SETTINGS);
-                startActivity(intent);
-
-            }
-        };
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
-            if (ActivityCompat.checkSelfPermission(this, Manifest.permission.ACCESS_FINE_LOCATION) != PackageManager.PERMISSION_GRANTED && ActivityCompat.checkSelfPermission(this, Manifest.permission.ACCESS_COARSE_LOCATION) != PackageManager.PERMISSION_GRANTED) {
-                requestPermissions(new String[]{
-                        Manifest.permission.ACCESS_FINE_LOCATION, Manifest.permission.ACCESS_COARSE_LOCATION, Manifest.permission.INTERNET
-                }, 10);
-                return;
-            }
-        } else {
-            configureButton();
-        }
     }
 
-    @Override
-    public void onRequestPermissionsResult(int requestCode, @NonNull String[] permissions,
-                                           @NonNull int[] grantResults) {
-        switch (requestCode) {
-            case 10:
-                if (grantResults.length > 0 && grantResults[0] == PackageManager.PERMISSION_GRANTED)
-                    configureButton();
-        }
-    }
-
-    public void configureButton() {
-        button.setOnClickListener(new View.OnClickListener() {
-            @Override
-            public void onClick(View v) {
-                try {
-                    locationManager.requestLocationUpdates("gps", 5000, 0, locationListener);
-                } catch (SecurityException se) {
-                    System.out.println(se);
-                }
-            }
-        });
+    public void getPositionAndCoverage(View view) {
+        textViewPosition.setText("this is my position" + counter);
+        textViewCoverage.setText("beeeeeeeeeeeeeep" + counter++);
     }
 
 
@@ -110,6 +93,32 @@ public class MainActivity extends AppCompatActivity {
         intent.putExtra(EXTRA_MESSAGE, message);
         startActivity(intent);
 
+    }
+
+    @SuppressLint("NewApi")
+    @RequiresApi(api = Build.VERSION_CODES.JELLY_BEAN_MR1)
+    public void getSignalStrength(){
+        TelephonyManager telephonyManager = (TelephonyManager) getSystemService(Context.TELEPHONY_SERVICE);
+        @SuppressLint("MissingPermission") List<CellInfo> cellInfos = telephonyManager.getAllCellInfo();   //This will give info of all sims present inside your mobile
+        if(cellInfos!=null){
+            for (int i = 0 ; i<cellInfos.size(); i++){
+                if (cellInfos.get(i).isRegistered()){
+                    if(cellInfos.get(i) instanceof CellInfoWcdma){
+                        @SuppressLint("MissingPermission") CellInfoWcdma cellInfoWcdma = (CellInfoWcdma) telephonyManager.getAllCellInfo().get(0);
+                        CellSignalStrengthWcdma cellSignalStrengthWcdma = cellInfoWcdma.getCellSignalStrength();
+                        strength = String.valueOf(cellSignalStrengthWcdma.getDbm());
+                    }else if(cellInfos.get(i) instanceof CellInfoGsm){
+                        @SuppressLint("MissingPermission") CellInfoGsm cellInfogsm = (CellInfoGsm) telephonyManager.getAllCellInfo().get(0);
+                        CellSignalStrengthGsm cellSignalStrengthGsm = cellInfogsm.getCellSignalStrength();
+                        strength = String.valueOf(cellSignalStrengthGsm.getDbm());
+                    }else if(cellInfos.get(i) instanceof CellInfoLte){
+                        @SuppressLint("MissingPermission") CellInfoLte cellInfoLte = (CellInfoLte) telephonyManager.getAllCellInfo().get(0);
+                        CellSignalStrengthLte cellSignalStrengthLte = cellInfoLte.getCellSignalStrength();
+                        strength = String.valueOf(cellSignalStrengthLte.getDbm());
+                    }
+                }
+            }
+        }
     }
 }
 
