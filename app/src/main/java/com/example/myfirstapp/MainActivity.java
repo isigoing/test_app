@@ -24,6 +24,17 @@ import android.widget.TextView;
 import androidx.annotation.RequiresApi;
 import androidx.appcompat.app.AppCompatActivity;
 
+import org.json.JSONArray;
+import org.json.JSONException;
+import org.json.JSONObject;
+
+import java.io.BufferedOutputStream;
+import java.io.BufferedWriter;
+import java.io.OutputStream;
+import java.io.OutputStreamWriter;
+import java.net.HttpURLConnection;
+import java.net.URL;
+import java.util.ArrayList;
 import java.util.List;
 
 public class MainActivity extends AppCompatActivity {
@@ -33,17 +44,71 @@ public class MainActivity extends AppCompatActivity {
     TextView textViewCoverage;
     int counter;
     String strength = "";
-
+    int jsonCounter = 0;
+    ArrayList<String> jsonArray = new ArrayList<>();
     LocationManager locationManager;
     Context context;
+    String json;
 
     LocationListener locationListener = new LocationListener() {
         @RequiresApi(api = Build.VERSION_CODES.JELLY_BEAN_MR1)
         @Override
         public void onLocationChanged(Location location) {
-            textViewPosition.setText("Latitude: "+ location.getLatitude() +"\n" + "Longitude: " + location.getLongitude());
+            double lat = location.getLatitude();
+            double lon = location.getLongitude();
+
+            textViewPosition.setText("Latitude: " + lat + "\n" + "Longitude: " + lon);
             getSignalStrength();
             textViewCoverage.setText(strength);
+
+
+            try {
+                json = new JSONObject()
+                        .put("position", new JSONObject()
+                                .put("latitude", lat)
+                                .put("longitude", lon))
+                        .put("strength", strength).toString();
+                jsonArray.add(json);
+
+            } catch (JSONException e) {
+                e.printStackTrace();
+            }
+
+
+
+            if (jsonArray.size() == 10) {
+                Thread thread = new Thread(new Runnable() {
+                    @Override
+                    public void run() {
+                        System.out.println("Ready to send");
+                        try {
+                            String ipadress = "";
+                            URL url = new URL("http://["+ ipadress + "]:8080/data");
+                            HttpURLConnection urlConnection = (HttpURLConnection) url.openConnection();
+                            urlConnection.setRequestMethod("POST");
+                            urlConnection.setRequestProperty("Content-Type", "application/json");
+                            urlConnection.setRequestProperty("Accept", "application/json");
+                            urlConnection.setDoOutput(true);
+                            urlConnection.setDoInput(true);
+                            urlConnection.connect();
+                            OutputStream out = new BufferedOutputStream(urlConnection.getOutputStream());
+                            BufferedWriter writer = new BufferedWriter(new OutputStreamWriter(out, "UTF-8"));
+                            writer.write(String.valueOf(jsonArray));
+                            writer.flush();
+                            writer.close();
+                            out.close();
+                            Log.i("STATUS", String.valueOf(urlConnection.getResponseCode()));
+                            Log.i("MSG", urlConnection.getResponseMessage());
+                            urlConnection.disconnect();
+                            jsonArray.clear();
+                        } catch (Exception e) {
+                            e.printStackTrace();
+                        }
+                    }
+                });
+                thread.start();
+            }
+
         }
 
         @Override
@@ -97,21 +162,21 @@ public class MainActivity extends AppCompatActivity {
 
     @SuppressLint("NewApi")
     @RequiresApi(api = Build.VERSION_CODES.JELLY_BEAN_MR1)
-    public void getSignalStrength(){
+    public void getSignalStrength() {
         TelephonyManager telephonyManager = (TelephonyManager) getSystemService(Context.TELEPHONY_SERVICE);
         @SuppressLint("MissingPermission") List<CellInfo> cellInfos = telephonyManager.getAllCellInfo();   //This will give info of all sims present inside your mobile
-        if(cellInfos!=null){
-            for (int i = 0 ; i<cellInfos.size(); i++){
-                if (cellInfos.get(i).isRegistered()){
-                    if(cellInfos.get(i) instanceof CellInfoWcdma){
+        if (cellInfos != null) {
+            for (int i = 0; i < cellInfos.size(); i++) {
+                if (cellInfos.get(i).isRegistered()) {
+                    if (cellInfos.get(i) instanceof CellInfoWcdma) {
                         @SuppressLint("MissingPermission") CellInfoWcdma cellInfoWcdma = (CellInfoWcdma) telephonyManager.getAllCellInfo().get(0);
                         CellSignalStrengthWcdma cellSignalStrengthWcdma = cellInfoWcdma.getCellSignalStrength();
                         strength = String.valueOf(cellSignalStrengthWcdma.getDbm());
-                    }else if(cellInfos.get(i) instanceof CellInfoGsm){
+                    } else if (cellInfos.get(i) instanceof CellInfoGsm) {
                         @SuppressLint("MissingPermission") CellInfoGsm cellInfogsm = (CellInfoGsm) telephonyManager.getAllCellInfo().get(0);
                         CellSignalStrengthGsm cellSignalStrengthGsm = cellInfogsm.getCellSignalStrength();
                         strength = String.valueOf(cellSignalStrengthGsm.getDbm());
-                    }else if(cellInfos.get(i) instanceof CellInfoLte){
+                    } else if (cellInfos.get(i) instanceof CellInfoLte) {
                         @SuppressLint("MissingPermission") CellInfoLte cellInfoLte = (CellInfoLte) telephonyManager.getAllCellInfo().get(0);
                         CellSignalStrengthLte cellSignalStrengthLte = cellInfoLte.getCellSignalStrength();
                         strength = String.valueOf(cellSignalStrengthLte.getDbm());
